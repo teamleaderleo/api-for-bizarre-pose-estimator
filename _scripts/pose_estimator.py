@@ -101,6 +101,11 @@ def load_model(ckpt_path: str):
     """
     Load and return (pose_model, segmenter) tuple from checkpoint paths.
     """
+    # Add pytorch_lightning alias 'pl' for segmenter module
+    import builtins
+    import pytorch_lightning as pl
+
+    builtins.pl = pl
     # background segmenter
     from _train.character_bg_seg.models.alaska import Model as CharacterBGSegmenter
 
