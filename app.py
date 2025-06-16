@@ -23,7 +23,7 @@ image = (
         "scikit-image==0.18.3",
         "kornia==0.6.2",
         "pytorch-lightning==1.3.8",
-        "torchmetrics",
+        "torchmetrics<0.8.0",
         "fastapi",
         "python-multipart",
     )
