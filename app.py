@@ -11,7 +11,15 @@ image = (
     .run_commands(
         [
             "apt-get update",
-            "DEBIAN_FRONTEND=noninteractive apt-get install -y libgl1-mesa-glx libsm6 libxrender1",
+            "DEBIAN_FRONTEND=noninteractive apt-get install -y "
+            "libgl1-mesa-glx libsm6 libxrender1 wget",  # add wget
+            # pre-cache the DeepLabV3 COCO backbone so inference never downloads it
+            "mkdir -p /root/.cache/torch/hub/checkpoints",
+            "wget "
+            "https://download.pytorch.org/models/"
+            "deeplabv3_resnet101_coco-586e9e4e.pth "
+            "-O /root/.cache/torch/hub/checkpoints/"
+            "deeplabv3_resnet101_coco-586e9e4e.pth",
         ]
     )
     # Python deps: torch, kornia, scikit-image, lightning, FastAPI, + multipart support
