@@ -48,6 +48,11 @@ image = (
         "_train/character_pose_estim/runs/feat_match+data.ckpt",
         "/root/_train/character_pose_estim/runs/feat_match+data.ckpt",
     )
+    # Danbooru tagger code + checkpoint
+    .add_local_dir(
+        "_train/danbooru_tagger",
+        "/root/_train/danbooru_tagger",
+    )
 )
 
 
