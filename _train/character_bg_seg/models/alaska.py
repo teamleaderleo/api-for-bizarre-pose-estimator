@@ -1,9 +1,8 @@
-
-
 from _util.util_v1 import * ; import _util.util_v1 as uutil
 from _util.pytorch_v1 import * ; import _util.pytorch_v1 as utorch
 from _util.twodee_v0 import * ; import _util.twodee_v0 as u2d
 
+from torchvision.models.segmentation import DeepLabV3_ResNet101_Weights
 
 class Model(pl.LightningModule):
     def __init__(self, bargs, pargs, largs, margs):
@@ -16,7 +15,8 @@ class Model(pl.LightningModule):
 
         # setup deeplab
         self.deeplab = tv.models.segmentation.deeplabv3_resnet101(
-            pretrained=True, progress=True,
+            weights=DeepLabV3_ResNet101_Weights.COCO_WITH_VOC_LABELS_V1,
+            progress=True,
         )
         self.deeplab.aux_classifier = None
         # for param in self.deeplab.backbone.parameters():
@@ -81,17 +81,17 @@ class Model(pl.LightningModule):
             out['softmax'] = torch.softmax(out_fin, dim=1)
             out['max'] = torch.max(out_fin, dim=1).indices
         return out
-    
+
     def training_step(self, batch, batch_idx):
         # unpack
         x = batch
         rgb = x['image_composite']
         seg = (x['image_fg'][:,-1]>0.5).long()
-        
+
         # predict
         pred = self.forward(rgb, return_more=False)
         loss = self.loss(seg, pred['raw'])
-        
+
         # log
         for k,v in {
             'train_loss': loss['loss'],
@@ -109,11 +109,11 @@ class Model(pl.LightningModule):
         x = batch
         rgb = x['image_composite']
         seg = (x['image_fg'][:,-1]>0.5).long()
-        
+
         # predict
         pred = self.forward(rgb, return_more=False)
         loss = self.loss(seg, pred['raw'])
-        
+
         # log
         return OrderedDict({
             'val_loss': loss['loss'],
@@ -133,8 +133,7 @@ class Model(pl.LightningModule):
         for k,v in ans.items():
             self.log(k, v)
         return
-    
-    
+
     def configure_optimizers(self):
         opt = torch.optim.Adam(
             self.parameters(),
