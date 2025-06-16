@@ -30,13 +30,23 @@ image = (
     .add_local_python_source("_scripts")
     # Include its utilities as a Python package
     .add_local_python_source("_util")
-    # Include only the specific model dirs instead of all of _train
+    # Background segmenter code + checkpoint
+    .add_local_dir(
+        "_train/character_bg_seg/models",
+        "/root/_train/character_bg_seg/models",
+    )
+    .add_local_file(
+        "_train/character_bg_seg/runs/eyeless_alaska_vulcan0000/checkpoints/epoch=0096-val_f1=0.9508-val_loss=0.0483.ckpt",
+        "/root/_train/character_bg_seg/runs/eyeless_alaska_vulcan0000/checkpoints/epoch=0096-val_f1=0.9508-val_loss=0.0483.ckpt",
+    )
+    # Pose-estimator code + checkpoint
+    .add_local_dir(
+        "_train/character_pose_estim/models",
+        "/root/_train/character_pose_estim/models",
+    )
     .add_local_file(
         "_train/character_pose_estim/runs/feat_concat+data.ckpt",
         "/root/_train/character_pose_estim/runs/feat_concat+data.ckpt",
-    ).add_local_file(
-        "_train/character_bg_seg/runs/eyeless_alaska_vulcan0000/checkpoints/epoch=0096-val_f1=0.9508-val_loss=0.0483.ckpt",
-        "/root/_train/character_bg_seg/runs/eyeless_alaska_vulcan0000/checkpoints/epoch=0096-val_f1=0.9508-val_loss=0.0483.ckpt",
     )
 )
 
