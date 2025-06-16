@@ -38,7 +38,7 @@ image = (
     # Try T4 first, then...
     gpu=["T4", "L4", "A10G", "L40S", "A100", "any"],
     image=image,
-    scaledown_window=30
+    scaledown_window=60
 )
 class BizarrePoseModel:
     def __enter__(self):
