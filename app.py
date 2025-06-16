@@ -78,20 +78,35 @@ class BizarrePoseModel:
     def load_model_once(self):
         import sys, types
 
-        # Stub out Detectron2
-        detectron2_pkg = types.ModuleType("detectron2")
-        detectron2_cfg = types.ModuleType("detectron2.config")
-        # supply a dummy get_cfg() so fermat.py won't crash
-        detectron2_cfg.get_cfg = lambda: types.SimpleNamespace(
-            MODEL=types.SimpleNamespace(
-                KEYPOINT_ON=False,
-                WEIGHTS="",
-                ROI_HEADS=types.SimpleNamespace(NUM_CLASSES=0),
-            )
-        )
-        detectron2_pkg.config = detectron2_cfg
-        sys.modules["detectron2"] = detectron2_pkg
-        sys.modules["detectron2.config"] = detectron2_cfg
+        # fake detectron2 module
+        dt2 = types.ModuleType("detectron2")
+
+        # config submodule with get_cfg()
+        cfg_mod = types.ModuleType("detectron2.config")
+
+        class DummyCfg:
+            def merge_from_file(self, path):
+                return self
+
+            def merge_from_list(self, lst):
+                return self
+
+        cfg_mod.get_cfg = lambda: DummyCfg()
+
+        # model_zoo submodule with get_config_file()
+        mz_mod = types.ModuleType("detectron2.model_zoo")
+        mz_mod.get_config_file = lambda name: name  # return dummy path
+
+        # attach submodules
+        dt2.config = cfg_mod
+        dt2.model_zoo = mz_mod
+
+        # inject into sys.modules
+        sys.modules["detectron2"] = dt2
+        sys.modules["detectron2.config"] = cfg_mod
+        sys.modules["detectron2.model_zoo"] = mz_mod
+        sys.modules["detectron2.config.get_cfg"] = cfg_mod.get_cfg
+        sys.modules["detectron2.model_zoo.get_config_file"] = mz_mod.get_config_file
 
         sys.path.insert(0, "/root")
         from _scripts.pose_estimator import load_model, run_pose_estimation
