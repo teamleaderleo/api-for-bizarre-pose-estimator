@@ -7,7 +7,8 @@ from PIL import Image
 from _util.util_v1 import *  # I, a2bg, resize_min, etc.
 import _util.util_v1 as uutil
 from _util.pytorch_v1 import *
-import _util.pytorch_v1 as utorch
+
+# import _util.pytorch_v1 as utorch  (alias unused, star import provides needed functions)
 from _util.twodee_v0 import *  # cropbox, resize_square_dry, etc.
 import _util.twodee_v0 as u2d
 import _util.keypoints_v0 as ukey
@@ -106,6 +107,11 @@ def load_model(ckpt_path: str):
     import pytorch_lightning as pl
 
     builtins.pl = pl
+    # stub out missing JSON rule files needed by the classifier
+    import _util.util_v1 as uutil
+
+    uutil.jread = lambda fn, mode="r": {}
+
     # background segmenter
     from _train.character_bg_seg.models.alaska import Model as CharacterBGSegmenter
 
