@@ -28,6 +28,8 @@ image = (
     )
     # Include inference scripts as a Python package
     .add_local_python_source("_scripts")
+    # Include its utilities as a Python package
+    .add_local_python_source("_util")
     # Include extracted checkpoint directory
     .add_local_dir("_train", "/root/_train")
 )
