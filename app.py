@@ -53,6 +53,8 @@ image = (
         "_train/danbooru_tagger",
         "/root/_train/danbooru_tagger",
     )
+    # Add the rule‐book JSONs:
+    .add_local_dir("_data/danbooru/_filters", "/root/_data/danbooru/_filters")
 )
 
 
