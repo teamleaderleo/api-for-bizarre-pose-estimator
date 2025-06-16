@@ -1,4 +1,3 @@
-import io
 import modal
 from fastapi import UploadFile, File, HTTPException
 
