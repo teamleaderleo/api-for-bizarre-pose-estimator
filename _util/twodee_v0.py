@@ -81,10 +81,10 @@ class I:
                 self.data = self.data.transpose(2,0,1)
             if np.issubdtype(self.data.dtype, np.floating):
                 pass
-            elif self.data.dtype==np.bool:
-                self.data = self.data.astype(np.float)
+            elif self.data.dtype==bool:
+                self.data = self.data.astype(float)
             elif np.issubdtype(self.data.dtype, np.integer):
-                self.data = self.data.astype(np.float) / 255.0
+                self.data = self.data.astype(float) / 255.0
             self.dtype = 'np'
             self.mode = {
                 1: 'L',
