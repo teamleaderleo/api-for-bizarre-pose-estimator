@@ -148,14 +148,27 @@ class BizarrePoseModel:
 
     @modal.fastapi_endpoint(method="POST", docs=True)
     async def predict(self, file: UploadFile = File(...)):
+        import _util.keypoints_v0 as ukey
+
         if not file.content_type.startswith("image/"):
             raise HTTPException(415, "Please upload an image file")
         buf = await file.read()
+
         try:
-            keypoints = self.run(self.model, buf)
+            # This returns the (18, 2) NumPy array
+            keypoints_array = self.run(self.model, buf)
         except Exception as e:
+            # log the full exception for debugging
+            print(f"Inference failed with exception: {e}")
             raise HTTPException(500, f"Inference failed: {e}")
-        return {"keypoints": keypoints}
+
+        # Create the structured dictionary by zipping names with coordinates
+        keypoints_dict = {
+            name: coords.tolist()  # .tolist() converts numpy array to python list
+            for name, coords in zip(ukey.coco_keypoints, keypoints_array)
+        }
+
+        return {"keypoints": keypoints_dict}
 
 
 if __name__ == "__main__":
