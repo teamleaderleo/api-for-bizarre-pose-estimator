@@ -26,16 +26,19 @@ image = (
         "pytorch-lightning==1.3.8",
         "fastapi",
     )
+    # Include inference scripts as a Python package
+    .add_local_python_source("_scripts")
+    # Include extracted checkpoint directory
+    .add_local_dir("_train", "/root/_train")
 )
 
 
-# 3) Project root (with _train, _data, _scripts) into /root
+# 3) Define GPU-backed class; no mounts needed
 @app.cls(
     # Try T4 first, then A10G, then any other available GPU
     gpu=["t4", "a10", "any"],
     image=image,
-    mounts=[modal.Mount.from_local_dir(".", "/root")],
-    container_idle_timeout=300,
+    scaledown_window=300,
 )
 class BizarrePoseModel:
     def __enter__(self):
