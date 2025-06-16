@@ -45,8 +45,8 @@ image = (
         "/root/_train/character_pose_estim/models",
     )
     .add_local_file(
-        "_train/character_pose_estim/runs/feat_concat+data.ckpt",
-        "/root/_train/character_pose_estim/runs/feat_concat+data.ckpt",
+        "_train/character_pose_estim/runs/feat_match+data.ckpt",
+        "/root/_train/character_pose_estim/runs/feat_match+data.ckpt",
     )
 )
 
@@ -66,7 +66,7 @@ class BizarrePoseModel:
         sys.path.insert(0, "/root")
         from _scripts.pose_estimator import load_model, run_pose_estimation
 
-        ckpt = "/root/_train/character_pose_estim/runs/feat_concat+data.ckpt"
+        ckpt = "/root/_train/character_pose_estim/runs/feat_match+data.ckpt"
         self.model = load_model(ckpt)
         self.run = run_pose_estimation
 
