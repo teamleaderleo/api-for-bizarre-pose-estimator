@@ -35,8 +35,8 @@ image = (
 
 # 3) Define GPU-backed class; no mounts needed
 @app.cls(
-    # Try T4 first, then A10G, then any other available GPU
-    gpu=["t4", "a10", "any"],
+    # Try T4 first, then...
+    gpu=["T4", "L4", "A10G", "L40S", "A100", "any"],
     image=image,
 )
 class BizarrePoseModel:
