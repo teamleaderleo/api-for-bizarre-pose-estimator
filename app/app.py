@@ -15,7 +15,7 @@ image = (
             "DEBIAN_FRONTEND=noninteractive apt-get install -y libgl1-mesa-glx libsm6 libxrender1",
         ]
     )
-    # Python deps: torch, kornia, scikit-image, lightning, and FastAPI
+    # Python deps: torch, kornia, scikit-image, lightning, FastAPI, + multipart support
     .pip_install(
         "torch",
         "torchvision",
@@ -25,6 +25,7 @@ image = (
         "kornia==0.6.2",
         "pytorch-lightning==1.3.8",
         "fastapi",
+        "python-multipart", 
     )
     # Include inference scripts as a Python package
     .add_local_python_source("_scripts")
