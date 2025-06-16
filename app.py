@@ -78,35 +78,40 @@ class BizarrePoseModel:
     def load_model_once(self):
         import sys, types
 
-        # fake detectron2 module
+        # ---- Stub out Detectron2 ----
         dt2 = types.ModuleType("detectron2")
 
         # config submodule with get_cfg()
         cfg_mod = types.ModuleType("detectron2.config")
-
         class DummyCfg:
-            def merge_from_file(self, path):
+            def __init__(self):
+                # mirror the fields that fermat.py writes to
+                self.MODEL = types.SimpleNamespace(
+                    KEYPOINT_ON=False,
+                    WEIGHTS="",
+                    ROI_HEADS=types.SimpleNamespace(
+                        NUM_CLASSES=0,
+                        SCORE_THRESH_TEST=0.0,  # default threshold
+                    ),
+                )
+            def merge_from_file(self, _path):
                 return self
-
-            def merge_from_list(self, lst):
+            def merge_from_list(self, _list):
                 return self
 
         cfg_mod.get_cfg = lambda: DummyCfg()
 
         # model_zoo submodule with get_config_file()
         mz_mod = types.ModuleType("detectron2.model_zoo")
-        mz_mod.get_config_file = lambda name: name  # return dummy path
+        mz_mod.get_config_file = lambda name: name  # no-op
 
-        # attach submodules
-        dt2.config = cfg_mod
-        dt2.model_zoo = mz_mod
-
-        # inject into sys.modules
-        sys.modules["detectron2"] = dt2
-        sys.modules["detectron2.config"] = cfg_mod
-        sys.modules["detectron2.model_zoo"] = mz_mod
-        sys.modules["detectron2.config.get_cfg"] = cfg_mod.get_cfg
-        sys.modules["detectron2.model_zoo.get_config_file"] = mz_mod.get_config_file
+        # assemble
+        dt2.config     = cfg_mod
+        dt2.model_zoo  = mz_mod
+        sys.modules["detectron2"]               = dt2
+        sys.modules["detectron2.config"]        = cfg_mod
+        sys.modules["detectron2.model_zoo"]     = mz_mod
+        # -------------------------------
 
         sys.path.insert(0, "/root")
         from _scripts.pose_estimator import load_model, run_pose_estimation
