@@ -66,7 +66,7 @@ image = (
 )
 
 
-# 3) Define GPU-backed class; no mounts needed
+# 3) Define GPU-backed class
 @app.cls(
     # Try T4 first, then...
     gpu=["T4", "L4", "A10G", "L40S", "A100", "any"],
@@ -76,43 +76,35 @@ image = (
 class BizarrePoseModel:
     @modal.enter()
     def load_model_once(self):
-        import sys, types
+        import sys, torch, importlib
 
-        # ---- Stub out Detectron2 ----
-        dt2 = types.ModuleType("detectron2")
+        # 1) Stub out the Danbooru tagger JSON loader
+        import _util.util_v1 as uutil
+        uutil.jread = lambda fn, mode="r": {}
 
-        # config submodule with get_cfg()
-        cfg_mod = types.ModuleType("detectron2.config")
-        class DummyCfg:
-            def __init__(self):
-                # mirror the fields that fermat.py writes to
-                self.MODEL = types.SimpleNamespace(
-                    KEYPOINT_ON=False,
-                    WEIGHTS="",
-                    ROI_HEADS=types.SimpleNamespace(
-                        NUM_CLASSES=0,
-                        SCORE_THRESH_TEST=0.0,  # default threshold
-                    ),
-                )
-            def merge_from_file(self, _path):
-                return self
-            def merge_from_list(self, _list):
-                return self
+        # 2) Define a dummy PretrainedKeypointDetector
+        class DummyPKD(torch.nn.Module):
+            def __init__(self, *args, **kwargs):
+                super().__init__()
+            def eval(self): return self
+            def parameters(self): return []
+            def forward(self, img, return_more=False):
+                bs, _, h, w = img.shape
+                zero_hm = torch.zeros(bs, 17+8, h, w, device=img.device)
+                return {'keypoint_heatmaps': zero_hm}
 
-        cfg_mod.get_cfg = lambda: DummyCfg()
+        # 3) Inject DummyPKD into both Fermat and PassUp before they’re loaded
+        for mod_name in (
+            "_train.character_pose_estim.models.fermat",
+            "_train.character_pose_estim.models.passup",
+        ):
+            sys.modules.pop(mod_name, None)
+        fermat = importlib.import_module("_train.character_pose_estim.models.fermat")
+        passup = importlib.import_module("_train.character_pose_estim.models.passup")
+        fermat.PretrainedKeypointDetector = DummyPKD
+        passup.PretrainedKeypointDetector = DummyPKD
 
-        # model_zoo submodule with get_config_file()
-        mz_mod = types.ModuleType("detectron2.model_zoo")
-        mz_mod.get_config_file = lambda name: name  # no-op
-
-        # assemble
-        dt2.config     = cfg_mod
-        dt2.model_zoo  = mz_mod
-        sys.modules["detectron2"]               = dt2
-        sys.modules["detectron2.config"]        = cfg_mod
-        sys.modules["detectron2.model_zoo"]     = mz_mod
-        # -------------------------------
-
+        # 4) Load inference library
         sys.path.insert(0, "/root")
         from _scripts.pose_estimator import load_model, run_pose_estimation
 
