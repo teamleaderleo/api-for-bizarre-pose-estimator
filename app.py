@@ -31,7 +31,7 @@ image = (
     # Include its utilities as a Python package
     .add_local_python_source("_util")
     # Include only the specific model dirs instead of all of _train
-    .add_local_dir(
+    .add_local_file(
         "_train/character_pose_estim/runs/feat_concat+data.ckpt",
         "/root/_train/character_pose_estim/runs/feat_concat+data.ckpt",
     ).add_local_dir(
