@@ -31,7 +31,8 @@ image = (
 
 # 3) Project root (with _train, _data, _scripts) into /root
 @app.cls(
-    gpu="any",
+    # Try T4 first, then A10G, then any other available GPU
+    gpu=["t4", "a10", "any"],
     image=image,
     mounts=[modal.Mount.from_local_dir(".", "/root")],
     container_idle_timeout=300,
