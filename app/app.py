@@ -38,7 +38,6 @@ image = (
     # Try T4 first, then A10G, then any other available GPU
     gpu=["t4", "a10", "any"],
     image=image,
-    scaledown_window=300,
 )
 class BizarrePoseModel:
     def __enter__(self):
