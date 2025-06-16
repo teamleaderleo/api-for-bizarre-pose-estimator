@@ -23,8 +23,9 @@ image = (
         "scikit-image==0.18.3",
         "kornia==0.6.2",
         "pytorch-lightning==1.3.8",
+        "torchmetrics",
         "fastapi",
-        "python-multipart", 
+        "python-multipart",
     )
     # Include inference scripts as a Python package
     .add_local_python_source("_scripts")
