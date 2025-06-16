@@ -33,6 +33,8 @@ image = (
     .add_local_python_source("_util")
     # Include extracted checkpoint directory
     .add_local_dir("_train", "/root/_train")
+    # Include data directory with Danbooru tag‐rule JSONs and other metadata
+    .add_local_dir("_data", "/root/_data")
 )
 
 
