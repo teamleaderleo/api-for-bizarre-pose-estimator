@@ -34,9 +34,9 @@ image = (
     .add_local_file(
         "_train/character_pose_estim/runs/feat_concat+data.ckpt",
         "/root/_train/character_pose_estim/runs/feat_concat+data.ckpt",
-    ).add_local_dir(
-        "_train/character_bg_seg/runs/eyeless_alaska_vulcan0000/checkpoints",
-        "/root/_train/character_bg_seg/runs/eyeless_alaska_vulcan0000/checkpoints",
+    ).add_local_file(
+        "_train/character_bg_seg/runs/eyeless_alaska_vulcan0000/checkpoints/epoch=0096-val_f1=0.9508-val_loss=0.0483.ckpt",
+        "/root/_train/character_bg_seg/runs/eyeless_alaska_vulcan0000/checkpoints/epoch=0096-val_f1=0.9508-val_loss=0.0483.ckpt",
     )
 )
 
