@@ -93,16 +93,50 @@ class BizarrePoseModel:
                 zero_hm = torch.zeros(bs, 17+8, h, w, device=img.device)
                 return {'keypoint_heatmaps': zero_hm}
 
-        # 3) Inject DummyPKD into both Fermat and PassUp before they’re loaded
-        for mod_name in (
-            "_train.character_pose_estim.models.fermat",
-            "_train.character_pose_estim.models.passup",
-        ):
-            sys.modules.pop(mod_name, None)
+        # 3) Monkey‐patch ResnetFeatureExtractor to always use torchvision
+        import torchvision.transforms as T
+        import torchvision.models as tv_models
+        class TorchvisionResnetExtractor(torch.nn.Module):
+            def __init__(self, inferserve_query):
+                super().__init__()
+                # load standard ResNet50
+                resnet = tv_models.resnet50(weights=tv_models.ResNet50_Weights.IMAGENET1K_V1)
+                self.resize = T.Resize(256)
+                self.prep   = T.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std =[0.229, 0.224, 0.225],
+                )
+                self.conv1   = resnet.conv1
+                self.bn1     = resnet.bn1
+                self.relu    = resnet.relu
+                self.maxpool = resnet.maxpool
+                self.layer1  = resnet.layer1
+                self.layer2  = resnet.layer2
+                self.layer3  = resnet.layer3
+
+            def forward(self, x):
+                ans = {}
+                x = self.resize(x)
+                x = self.prep(x)
+                x = self.conv1(x); ans['conv1'] = x
+                x = self.bn1(x);   x = self.relu(x)
+                x = self.maxpool(x)
+                x = self.layer1(x); ans['layer1'] = x
+                x = self.layer2(x); ans['layer2'] = x
+                x = self.layer3(x); ans['layer3'] = x
+                return ans
+
+        # Unload and reimport the model modules so we can patch them
+        for mod in ("_train.character_pose_estim.models.fermat",
+                    "_train.character_pose_estim.models.passup"):
+            sys.modules.pop(mod, None)
         fermat = importlib.import_module("_train.character_pose_estim.models.fermat")
         passup = importlib.import_module("_train.character_pose_estim.models.passup")
-        fermat.PretrainedKeypointDetector = DummyPKD
-        passup.PretrainedKeypointDetector = DummyPKD
+
+        fermat.PretrainedKeypointDetector      = DummyPKD
+        passup.PretrainedKeypointDetector      = DummyPKD
+        fermat.ResnetFeatureExtractor          = TorchvisionResnetExtractor
+        passup.ResnetFeatureExtractor          = TorchvisionResnetExtractor
 
         # 4) Load inference library
         sys.path.insert(0, "/root")
