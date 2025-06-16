@@ -31,8 +31,14 @@ image = (
     .add_local_python_source("_scripts")
     # Include its utilities as a Python package
     .add_local_python_source("_util")
-    # Include extracted checkpoint directory
-    .add_local_dir("_train", "/root/_train")
+    # Include only the specific model dirs instead of all of _train
+    .add_local_dir(
+        "_train/character_pose_estim/runs/feat_concat+data.ckpt",
+        "/root/_train/character_pose_estim/runs/feat_concat+data.ckpt",
+    ).add_local_dir(
+        "_train/character_bg_seg/runs/eyeless_alaska_vulcan0000/checkpoints",
+        "/root/_train/character_bg_seg/runs/eyeless_alaska_vulcan0000/checkpoints",
+    )
 )
 
 
