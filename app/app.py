@@ -42,7 +42,8 @@ image = (
     scaledown_window=60
 )
 class BizarrePoseModel:
-    def __enter__(self):
+    @modal.enter()
+    def load_model_once(self):
         import sys
 
         sys.path.insert(0, "/root")
