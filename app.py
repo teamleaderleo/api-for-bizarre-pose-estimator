@@ -76,7 +76,22 @@ image = (
 class BizarrePoseModel:
     @modal.enter()
     def load_model_once(self):
-        import sys
+        import sys, types
+
+        # Stub out Detectron2
+        detectron2_pkg = types.ModuleType("detectron2")
+        detectron2_cfg = types.ModuleType("detectron2.config")
+        # supply a dummy get_cfg() so fermat.py won't crash
+        detectron2_cfg.get_cfg = lambda: types.SimpleNamespace(
+            MODEL=types.SimpleNamespace(
+                KEYPOINT_ON=False,
+                WEIGHTS="",
+                ROI_HEADS=types.SimpleNamespace(NUM_CLASSES=0),
+            )
+        )
+        detectron2_pkg.config = detectron2_cfg
+        sys.modules["detectron2"] = detectron2_pkg
+        sys.modules["detectron2.config"] = detectron2_cfg
 
         sys.path.insert(0, "/root")
         from _scripts.pose_estimator import load_model, run_pose_estimation
