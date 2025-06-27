@@ -1,6 +1,3 @@
-
-
-
 from _util.util_v1 import * ; import _util.util_v1 as uutil
 from _util.pytorch_v1 import * ; import _util.pytorch_v1 as utorch
 from _util.twodee_v0 import * ; import _util.twodee_v0 as u2d
@@ -214,7 +211,7 @@ class ResnetFeatureExtractor(nn.Module):
                 'epoch=0022-val_f2=0.4461-val_loss=0.0766.ckpt'
             )
             self.base_hparams = base.hparams
-            
+
             self.resize = TT.Resize(base.hparams.largs.danbooru_sfw.size)
             self.resnet_preprocess = base.resnet_preprocess
             self.conv1 = base.resnet.conv1
@@ -245,31 +242,42 @@ class ResnetFeatureExtractor(nn.Module):
         # ans['layer4'] = x
         return ans
 
+
 class PretrainedKeypointDetector(nn.Module):
     def __init__(self):
         super().__init__()
-        
+
+        # FIX: Import the model_zoo submodule.
+        from detectron2 import model_zoo
+
         # setup rcnn model
         self.cfg = detectron2.config.get_cfg()
-        self.cfg.merge_from_file(detectron2.model_zoo.get_config_file(
-            'COCO-Keypoints/keypoint_rcnn_R_101_FPN_3x.yaml'
-        ))
-        self.cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.0
-        self.cfg.MODEL.WEIGHTS = detectron2.model_zoo.get_checkpoint_url(
-            'COCO-Keypoints/keypoint_rcnn_R_101_FPN_3x.yaml'
+        # FIX: Use the imported submodule to call the function.
+        self.cfg.merge_from_file(
+            model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_101_FPN_3x.yaml")
         )
-        self.cfg['MODEL']['DEVICE'] = 'cpu'
+        self.cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.0
+        # FIX: Use the imported submodule to call the function.
+        self.cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(
+            "COCO-Keypoints/keypoint_rcnn_R_101_FPN_3x.yaml"
+        )
+        self.cfg["MODEL"]["DEVICE"] = "cpu"
         self.predictor = detectron2.engine.DefaultPredictor(self.cfg)
         self.model = self.predictor.model
-        
+
         # preprocessing
         self.size = 800
         self.resize = TT.Resize(self.size)
         return
+
     def forward(self, img, return_more=False):
+        # This forward pass is unique to passup.py, returning the final heatmaps.
         # assumes img.shape = (bs, rgb, h, w)
-        h,w = img.shape[2:]
-        x = [{'image': i, 'height': h, 'width': w} for i in 255*self.resize(img).flip(1)]
+        h, w = img.shape[2:]
+        x = [
+            {"image": i, "height": h, "width": w}
+            for i in 255 * self.resize(img).flip(1)
+        ]
         images = self.model.preprocess_image(x)
         features = self.model.backbone(images.tensor)
         if False:
@@ -277,46 +285,75 @@ class PretrainedKeypointDetector(nn.Module):
             proposals = [
                 detectron2.structures.instances.Instances(
                     image_size=images[0].shape[1:],
-                    proposal_boxes=detectron2.structures.boxes.Boxes(torch.tensor([
-                        0, 0, *images[0].shape[1:],
-                    ], device=images.device)[None]),
-                    objectness_logits=torch.tensor([1.0,], device=images.device),
+                    proposal_boxes=detectron2.structures.boxes.Boxes(
+                        torch.tensor(
+                            [
+                                0,
+                                0,
+                                *images[0].shape[1:],
+                            ],
+                            device=images.device,
+                        )[None]
+                    ),
+                    objectness_logits=torch.tensor(
+                        [
+                            1.0,
+                        ],
+                        device=images.device,
+                    ),
                 ),
-            ]*img.shape[0]
-            results,_ = self.model.roi_heads(images, features, proposals, None)
+            ] * img.shape[0]
+            results, _ = self.model.roi_heads(images, features, proposals, None)
         else:
             # forces them to use my bboxes
-            h,w = images[0].shape[1:]
+            h, w = images[0].shape[1:]
             detected_instances = [
                 detectron2.structures.instances.Instances(
-                    image_size=(h,w),
-                    pred_boxes=detectron2.structures.boxes.Boxes(torch.tensor([
-                        0, 0, h, w,
-                    ], device=images.device)[None]),
-                    pred_classes=torch.tensor([0,], device=images.device),
+                    image_size=(h, w),
+                    pred_boxes=detectron2.structures.boxes.Boxes(
+                        torch.tensor(
+                            [
+                                0,
+                                0,
+                                h,
+                                w,
+                            ],
+                            device=images.device,
+                        )[None]
+                    ),
+                    pred_classes=torch.tensor(
+                        [
+                            0,
+                        ],
+                        device=images.device,
+                    ),
                 )
                 for _ in range(img.shape[0])
             ]
-            results = self.model.roi_heads.forward_with_given_boxes(features, detected_instances)
+            results = self.model.roi_heads.forward_with_given_boxes(
+                features, detected_instances
+            )
         results = self.model._postprocess(results, x, images.image_sizes)
-        hms = torch.cat([r['instances'].pred_keypoint_heatmaps for r in results])
-        ans = {'keypoint_heatmaps': hms}
+        hms = torch.cat([r["instances"].pred_keypoint_heatmaps for r in results])
+        ans = {"keypoint_heatmaps": hms}
         if return_more:
-            ans['results'] = results
-            ans['images'] = images
-            ans['features'] = features
-            ans['detected_instances'] = detected_instances
-            ans['bboxes'] = [
-                ((b,a), (d-b,c-a))
+            ans["results"] = results
+            ans["images"] = images
+            ans["features"] = features
+            ans["detected_instances"] = detected_instances
+            ans["bboxes"] = [
+                ((b, a), (d - b, c - a))
                 for r in results
-                for a,b,c,d in r['instances'].pred_boxes.tensor.detach().cpu().numpy()
+                for a, b, c, d in r["instances"]
+                .pred_boxes.tensor.detach()
+                .cpu()
+                .numpy()
             ]
-            ans['keypoints'] = torch.stack([
-                k[:,:2].flip(1)
-                for r in results
-                for k in r['instances'].pred_keypoints
-            ])
+            ans["keypoints"] = torch.stack(
+                [
+                    k[:, :2].flip(1)
+                    for r in results
+                    for k in r["instances"].pred_keypoints
+                ]
+            )
         return ans
-
-
-
