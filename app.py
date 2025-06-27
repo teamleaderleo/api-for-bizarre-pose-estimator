@@ -19,9 +19,12 @@ image = (
     # Install the specific PyTorch, Torchvision, and Detectron2 versions from the Dockerfile
     # This is for compatibility with the pretrained models.
     .run_commands(
+        # First, install the correct PyTorch and Torchvision versions
         "pip install torch==1.8.1+cu111 torchvision==0.9.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html",
-        # point directly to the correct wheel for Python 3.9
-        "pip install 'detectron2 @ https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.8/detectron2-0.6-cp39-cp39-linux_x86_64.whl'",
+
+        # Now, install Detectron2 by pointing pip to the official index URL.
+        # This is more robust than linking to a specific file.
+        "pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.8/index.html",
     )
     # Install all other Python dependencies with pinned versions
     .pip_install(
