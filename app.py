@@ -82,8 +82,8 @@ image = (
     # Try T4 first, then...
     gpu=["T4", "L4", "A10G", "L40S", "A100", "any"],
     image=image,
-    scaledown_window=60,
-    timeout=180,
+    scaledown_window=20,
+    timeout=60,
     enable_memory_snapshot=True,  # *** PERFORMANCE FIX: Enable memory snapshots ***
 )
 class BizarrePoseModel:
