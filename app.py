@@ -27,6 +27,7 @@ image = (
     )
     # Install all other Python dependencies.
     .pip_install(
+        "protobuf==3.20.3",
         # The error log shows a conflict between old torch (built against NumPy 1.x)
         # and the new NumPy 2.x. We pin NumPy to a compatible 1.x version.
         "numpy==1.21.5",
