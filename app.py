@@ -83,29 +83,33 @@ image = (
     gpu=["T4", "L4", "A10G", "L40S", "A100", "any"],
     image=image,
     scaledown_window=60,
-    timeout=180,  # *** SAFETY FIX: Add a 3-minute hard timeout ***
+    timeout=180,
+    enable_memory_snapshot=True,  # *** PERFORMANCE FIX: Enable memory snapshots ***
 )
 class BizarrePoseModel:
-    @modal.enter()
-    def load_model_once(self):
-        """
-        This runs once per container startup. We load the models using the
-        project's own loader script, without any stubs or monkey-patching.
-        """
+    # *** STAGE 1: Load models onto CPU. This is snapshotted. ***
+    @modal.enter(snap=True)
+    def load_models_to_cpu(self):
         import sys
 
         # Add the project root to the Python path to allow imports like `_scripts...`
         sys.path.insert(0, "/root")
-
         from _scripts.pose_estimator import load_model
 
-        # The path to the checkpoint inside the Modal container
-        ckpt_path = "/root/_train/character_pose_estim/runs/feat_match+data.ckpt"
+        print("Loading models to CPU from checkpoint...")
+        self.model_tuple = load_model(
+            "/root/_train/character_pose_estim/runs/feat_match+data.ckpt"
+        )
+        print("CPU models loaded successfully.")
 
-        print("Loading models from checkpoint...")
-        # load_model returns a (pose_model, segmenter) tuple
-        self.model_tuple = load_model(ckpt_path)
-        print("Models loaded successfully.")
+    # *** STAGE 2: Move models to GPU. This runs after restoring from snapshot. ***
+    @modal.enter(snap=False)
+    def move_models_to_gpu(self):
+        print("Moving models to GPU...")
+        pose_model, segmenter = self.model_tuple
+        pose_model.to("cuda")
+        segmenter.to("cuda")
+        print("Models moved to GPU successfully.")
 
     @modal.fastapi_endpoint(method="POST", docs=True)
     async def predict(self, file: UploadFile = File(...)):
@@ -139,7 +143,6 @@ class BizarrePoseModel:
             name: coords.tolist()  # .tolist() converts numpy array to python list
             for name, coords in zip(ukey.coco_keypoints, keypoints_array)
         }
-
         return {"keypoints": keypoints_dict}
 
 

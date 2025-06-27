@@ -113,10 +113,13 @@ def load_model(ckpt_path: str):
     # background segmenter
     from _train.character_bg_seg.models.alaska import Model as CharacterBGSegmenter
 
+    # Force model to load onto CPU so it works with memory snapshots ***
     segmenter = CharacterBGSegmenter.load_from_checkpoint(
         "./_train/character_bg_seg/runs/eyeless_alaska_vulcan0000/checkpoints/"
-        "epoch=0096-val_f1=0.9508-val_loss=0.0483.ckpt"
+        "epoch=0096-val_f1=0.9508-val_loss=0.0483.ckpt",
+        map_location="cpu",
     )
+
     # pose estimator
     if "feat_concat" in ckpt_path:
         from _train.character_pose_estim.models.passup import (
@@ -128,7 +131,11 @@ def load_model(ckpt_path: str):
         )
     else:
         raise ValueError("Checkpoint name must include feat_concat or feat_match")
-    pose_model = CharacterPoseEstimator.load_from_checkpoint(ckpt_path, strict=False)
+
+    # Force model to load onto CPU so it works with memory snapshots ***
+    pose_model = CharacterPoseEstimator.load_from_checkpoint(
+        ckpt_path, strict=False, map_location="cpu"
+    )
     return pose_model, segmenter
 
 
