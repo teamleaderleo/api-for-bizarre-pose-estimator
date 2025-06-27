@@ -4,6 +4,7 @@ from _util.twodee_v0 import * ; import _util.twodee_v0 as u2d
 
 import _util.keypoints_v0 as util_keypoints
 import _util.helper_models_v0 as util_hm
+from _util.helper_models_v0 import ResnetFeatureExtractor
 
 
 class Model(pl.LightningModule):
@@ -205,86 +206,6 @@ class ResnetFeatureConverter(nn.Module):
             self.resizer(self.layer3(feats_resnet['layer3'])),
             # self.resizer(self.layer4(feats_resnet['layer4'])),
         ], dim=1))))
-
-# from hack.train_classifier.kate import Model as Classifier
-from _train.danbooru_tagger.models.kate import Model as Classifier
-class ResnetFeatureExtractor(nn.Module):
-    def __init__(self, inferserve_query):
-        super().__init__()
-        self.inferserve_query = inferserve_query
-        if self.inferserve_query=='torchvision':
-            # use pytorch pretrained resnet50
-            self.inferserve = None
-            self.base_hparams = None
-            resnet = tv.models.resnet50(pretrained=True)
-
-            self.resize = TT.Resize(256)
-            self.resnet_preprocess = TT.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-            self.conv1 = resnet.conv1
-            self.bn1 = resnet.bn1
-            self.relu = resnet.relu      #   64ch, 128p (assuming 256p input)
-            self.maxpool = resnet.maxpool
-            self.layer1 = resnet.layer1  #  256ch,  64p
-            self.layer2 = resnet.layer2  #  512ch,  32p
-            self.layer3 = resnet.layer3  # 1024ch,  16p
-            # self.layer4 = resnet.layer4  # 2048ch,   8p
-        elif self.inferserve_query=='rf5':
-            # use rf5 resnet50
-            self.inferserve = None
-            self.base_hparams = None
-            resnet = torch.hub.load('RF5/danbooru-pretrained', 'resnet50')
-
-            self.resize = TT.Resize(256)
-            self.resnet_preprocess = TT.Normalize(mean=[0.7137, 0.6628, 0.6519], std=[0.2970, 0.3017, 0.2979])
-            self.conv1 = resnet[0][0]
-            self.bn1 = resnet[0][1]
-            self.relu = resnet[0][2]      #   64ch, 128p (assuming 256p input)
-            self.maxpool = resnet[0][3]
-            self.layer1 = resnet[0][4]  #  256ch,  64p
-            self.layer2 = resnet[0][5]  #  512ch,  32p
-            self.layer3 = resnet[0][6]  # 1024ch,  16p
-            # self.layer4 = resnet[0][7]  # 2048ch,   8p
-        else:
-            # use pretrained kate, danbooru-specific
-            # self.inferserve = util_serve.infer_ckpt(self.inferserve_query)
-            # base = Classifier.load_from_checkpoint(self.inferserve['fn'])
-            self.inferserve = None
-            base = Classifier.load_from_checkpoint(
-                './_train/danbooru_tagger/runs/waning_kate_vulcan0001/checkpoints/'
-                'epoch=0022-val_f2=0.4461-val_loss=0.0766.ckpt'
-            )
-            self.base_hparams = base.hparams
-
-            self.resize = TT.Resize(base.hparams.largs.danbooru_sfw.size)
-            self.resnet_preprocess = base.resnet_preprocess
-            self.conv1 = base.resnet.conv1
-            self.bn1 = base.resnet.bn1
-            self.relu = base.resnet.relu      #   64ch, 128p (assuming 256p input)
-            self.maxpool = base.resnet.maxpool
-            self.layer1 = base.resnet.layer1  #  256ch,  64p
-            self.layer2 = base.resnet.layer2  #  512ch,  32p
-            self.layer3 = base.resnet.layer3  # 1024ch,  16p
-            # self.layer4 = base.resnet.layer4  # 2048ch,   8p
-        return
-    def forward(self, x):
-        ans = {}
-        x = self.resize(x)
-        x = self.resnet_preprocess(x)
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        ans['conv1'] = x
-        x = self.maxpool(x)
-        x = self.layer1(x)
-        ans['layer1'] = x
-        x = self.layer2(x)
-        ans['layer2'] = x
-        x = self.layer3(x)
-        ans['layer3'] = x
-        # x = self.layer4(x)
-        # ans['layer4'] = x
-        return ans
-
 
 class PretrainedKeypointDetector(nn.Module):
     def __init__(self):

@@ -241,3 +241,83 @@ class Injector(nn.Module):
         t = self.net_resnet_converter(t)
         t = self.net_resnet(t)
         return t
+
+
+from _train.danbooru_tagger.models.kate import Model as Classifier
+import torchvision as tv
+
+
+class ResnetFeatureExtractor(nn.Module):
+    def __init__(self, inferserve_query):
+        super().__init__()
+        self.inferserve_query = inferserve_query
+        if self.inferserve_query == "torchvision":
+            # use pytorch pretrained resnet50
+            self.inferserve = None
+            self.base_hparams = None
+            resnet = tv.models.resnet50(pretrained=True)
+
+            self.resize = TT.Resize(256)
+            self.resnet_preprocess = TT.Normalize(
+                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+            )
+            self.conv1 = resnet.conv1
+            self.bn1 = resnet.bn1
+            self.relu = resnet.relu
+            self.maxpool = resnet.maxpool
+            self.layer1 = resnet.layer1
+            self.layer2 = resnet.layer2
+            self.layer3 = resnet.layer3
+        elif self.inferserve_query == "rf5":
+            # use rf5 resnet50
+            self.inferserve = None
+            self.base_hparams = None
+            resnet = torch.hub.load("RF5/danbooru-pretrained", "resnet50")
+
+            self.resize = TT.Resize(256)
+            self.resnet_preprocess = TT.Normalize(
+                mean=[0.7137, 0.6628, 0.6519], std=[0.2970, 0.3017, 0.2979]
+            )
+            self.conv1 = resnet[0][0]
+            self.bn1 = resnet[0][1]
+            self.relu = resnet[0][2]
+            self.maxpool = resnet[0][3]
+            self.layer1 = resnet[0][4]
+            self.layer2 = resnet[0][5]
+            self.layer3 = resnet[0][6]
+        else:
+            # use pretrained kate, danbooru-specific
+            self.inferserve = None
+            base = Classifier.load_from_checkpoint(
+                "./_train/danbooru_tagger/runs/waning_kate_vulcan0001/checkpoints/"
+                "epoch=0022-val_f2=0.4461-val_loss=0.0766.ckpt"
+            )
+            self.base_hparams = base.hparams
+
+            self.resize = TT.Resize(base.hparams.largs.danbooru_sfw.size)
+            self.resnet_preprocess = base.resnet_preprocess
+            self.conv1 = base.resnet.conv1
+            self.bn1 = base.resnet.bn1
+            self.relu = base.resnet.relu
+            self.maxpool = base.resnet.maxpool
+            self.layer1 = base.resnet.layer1
+            self.layer2 = base.resnet.layer2
+            self.layer3 = base.resnet.layer3
+        return
+
+    def forward(self, x):
+        ans = {}
+        x = self.resize(x)
+        x = self.resnet_preprocess(x)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        ans["conv1"] = x
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        ans["layer1"] = x
+        x = self.layer2(x)
+        ans["layer2"] = x
+        x = self.layer3(x)
+        ans["layer3"] = x
+        return ans
