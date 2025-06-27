@@ -107,10 +107,6 @@ def load_model(ckpt_path: str):
     import pytorch_lightning as pl
 
     builtins.pl = pl
-    # stub out missing JSON rule files needed by the classifier
-    import _util.util_v1 as uutil
-
-    uutil.jread = lambda fn, mode="r": {}
 
     # background segmenter
     from _train.character_bg_seg.models.alaska import Model as CharacterBGSegmenter
