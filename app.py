@@ -27,6 +27,9 @@ image = (
     )
     # Install all other Python dependencies.
     .pip_install(
+        # The error log shows a conflict between old torch (built against NumPy 1.x)
+        # and the new NumPy 2.x. We pin NumPy to a compatible 1.x version.
+        "numpy==1.21.5",
         # `igl` and `meshplot` are removed. Our deep dive through every single
         # model file confirmed they are unused, optional dependencies. The API's
         # code path for segmentation and pose estimation never calls them.
