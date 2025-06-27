@@ -103,6 +103,8 @@ def load_model(ckpt_path: str):
     Load and return (pose_model, segmenter) tuple from checkpoint paths.
     """
     # Add pytorch_lightning alias 'pl' for segmenter module
+    # This is a workaround for loading a pytorch-lightning checkpoint that
+    # was saved in an environment where `pl` was a global name. It should be kept.
     import builtins
     import pytorch_lightning as pl
 
