@@ -31,13 +31,17 @@ image = (
         # `igl` and `meshplot` are removed. Our deep dive through every single
         # model file confirmed they are unused, optional dependencies. The API's
         # code path for segmentation and pose estimation never calls them.
+        # The runtime error shows that the default `torchmetrics` installed by pip
+        # is too new for our old `torchvision`. We pin it to an older, compatible
+        # version to resolve the `VGG16_Weights` ImportError.
+        "torchmetrics==0.6.2",
         # Let versions chosen by detectron2 take precedence
         "Pillow",
         "scikit-image",
         "scikit-learn",
         "scipy",
         "matplotlib",
-        # Keep pins for the less common or more specific packages from your Dockerfile
+        # Keep pins for the less common or more specific packages from our Dockerfile
         "easydict==1.9",
         "imagesize==1.3.0",
         "patool==1.12",
