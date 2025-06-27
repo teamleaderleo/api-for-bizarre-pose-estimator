@@ -16,11 +16,15 @@ image = (
             "wget cmake ffmpeg libgl1-mesa-glx libsm6 libxext6 libxrender-dev",
         ]
     )
-    # Pre-cache the DeepLabV3 model weights so that `pretrained=True`
-    # finds them locally and doesn't try to download them at runtime.
+    # Pre-cache ALL models during the build ***
     .run_commands(
         "mkdir -p /root/.cache/torch/hub/checkpoints",
+        # 1. DeepLabV3 for the segmenter
         "wget https://download.pytorch.org/models/deeplabv3_resnet101_coco-586e9e4e.pth -O /root/.cache/torch/hub/checkpoints/deeplabv3_resnet101_coco-586e9e4e.pth",
+        # 2. ResNet50 for the pose estimator's backbone
+        "wget https://download.pytorch.org/models/resnet50-19c8e357.pth -O /root/.cache/torch/hub/checkpoints/resnet50-19c8e357.pth",
+        # 3. Detectron2's pretrained model
+        "wget https://dl.fbaipublicfiles.com/detectron2/COCO-Keypoints/keypoint_rcnn_R_101_FPN_3x/138363331/model_final_997cc7.pkl -O /root/model_final_997cc7.pkl",
     )
     # Install Torch, Torchvision, and Detectron2 first.
     # We must use run_commands here because of the --find-links (-f) flag.
@@ -33,6 +37,7 @@ image = (
     )
     # Install all other Python dependencies.
     .pip_install(
+        "Pillow==8.4.0",
         "protobuf==3.20.3",
         # The error log shows a conflict between old torch (built against NumPy 1.x)
         # and the new NumPy 2.x. We pin NumPy to a compatible 1.x version.
@@ -44,8 +49,6 @@ image = (
         # is too new for our old `torchvision`. We pin it to an older, compatible
         # version to resolve the `VGG16_Weights` ImportError.
         "torchmetrics==0.6.2",
-        # Let versions chosen by detectron2 take precedence
-        "Pillow==8.4.0",
         "scikit-image",
         "scikit-learn",
         "scipy",
@@ -80,6 +83,7 @@ image = (
     gpu=["T4", "L4", "A10G", "L40S", "A100", "any"],
     image=image,
     scaledown_window=60,
+    timeout=180,  # *** SAFETY FIX: Add a 3-minute hard timeout ***
 )
 class BizarrePoseModel:
     @modal.enter()
