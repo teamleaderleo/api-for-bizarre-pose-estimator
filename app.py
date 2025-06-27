@@ -16,8 +16,8 @@ image = (
             "wget cmake ffmpeg libgl1-mesa-glx libsm6 libxext6 libxrender-dev",
         ]
     )
-    # Install the specific PyTorch, Torchvision, and Detectron2 versions from the Dockerfile
-    # This is for compatibility with the pretrained models.
+    # Install Torch, Torchvision, and Detectron2 first.
+    # We must use run_commands here because of the --find-links (-f) flag.
     .run_commands(
         # First, install the correct PyTorch and Torchvision versions
         "pip install torch==1.8.1+cu111 torchvision==0.9.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html",
@@ -26,21 +26,24 @@ image = (
         # This is more robust than linking to a specific file.
         "pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.8/index.html",
     )
-    # Install all other Python dependencies with pinned versions
+    # Install all other Python dependencies.
     .pip_install(
-        "matplotlib==3.5.0",
-        "scipy==1.7.1",
-        "scikit-learn==1.0.1",
-        "scikit-image==0.18.3",
+        # *** Unpin igl and meshplot to let pip find compatible versions ***
+        "igl",
+        "meshplot",
+        # *** Unpin common libraries that detectron2 already installed ***
+        # Let the versions chosen by detectron2's installation take precedence.
+        "Pillow",
+        "scikit-image",
+        "scikit-learn",
+        "scipy",
+        "matplotlib",
+        # Keep pins for the less common or more specific packages from your Dockerfile
+        "easydict==1.9",
         "imagesize==1.3.0",
         "patool==1.12",
-        "easydict==1.9",
-        "igl==2.2.1",
-        "meshplot==0.4.0",
-        "Pillow==8.4.0",
         "wandb==0.12.7",
         "pyunpack==0.2.2",
-        "opencv-contrib-python==4.5.4.60",
         "kornia==0.6.2",
         "pytorch-lightning==1.3.8",
         # Dependencies for the web endpoint itself
@@ -61,7 +64,7 @@ image = (
     # Try T4 first, then...
     gpu=["T4", "L4", "A10G", "L40S", "A100", "any"],
     image=image,
-    scaledown_window=60
+    scaledown_window=60,
 )
 class BizarrePoseModel:
     @modal.enter()
