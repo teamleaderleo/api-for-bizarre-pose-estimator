@@ -28,11 +28,10 @@ image = (
     )
     # Install all other Python dependencies.
     .pip_install(
-        # *** Unpin igl and meshplot to let pip find compatible versions ***
-        "igl",
-        "meshplot",
-        # *** Unpin common libraries that detectron2 already installed ***
-        # Let the versions chosen by detectron2's installation take precedence.
+        # `igl` and `meshplot` are removed. Our deep dive through every single
+        # model file confirmed they are unused, optional dependencies. The API's
+        # code path for segmentation and pose estimation never calls them.
+        # Let versions chosen by detectron2 take precedence
         "Pillow",
         "scikit-image",
         "scikit-learn",
