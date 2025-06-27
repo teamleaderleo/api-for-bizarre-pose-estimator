@@ -21,7 +21,6 @@ image = (
     .run_commands(
         # First, install the correct PyTorch and Torchvision versions
         "pip install torch==1.8.1+cu111 torchvision==0.9.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html",
-
         # Now, install Detectron2 by pointing pip to the official index URL.
         # This is more robust than linking to a specific file.
         "pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.8/index.html",
@@ -56,9 +55,12 @@ image = (
     # Add the project's code and data directories wholesale.
     # No more cherry-picking files, which avoids missing dependencies.
     .add_local_dir("_train", "/root/_train")
-    .add_local_dir("_data", "/root/_data")
     .add_local_python_source("_scripts")
     .add_local_python_source("_util")
+    # Instead of uploading the entire `_data` directory (with gigabytes of raw images),
+    # we only include the small subdirectory of JSON rule files that the models
+    # actually need to load at runtime. This will fix the upload timeout.
+    .add_local_dir("_data/danbooru/_filters", "/root/_data/danbooru/_filters")
 )
 
 
