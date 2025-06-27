@@ -247,20 +247,18 @@ class PretrainedKeypointDetector(nn.Module):
     def __init__(self):
         super().__init__()
 
-        # FIX: Import the model_zoo submodule.
         from detectron2 import model_zoo
 
         # setup rcnn model
         self.cfg = detectron2.config.get_cfg()
-        # FIX: Use the imported submodule to call the function.
         self.cfg.merge_from_file(
             model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_101_FPN_3x.yaml")
         )
         self.cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.0
-        # FIX: Use the imported submodule to call the function.
-        self.cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(
-            "COCO-Keypoints/keypoint_rcnn_R_101_FPN_3x.yaml"
-        )
+
+        # *** PERFORMANCE FIX: Point to the pre-downloaded local file ***
+        self.cfg.MODEL.WEIGHTS = "/root/model_final_997cc7.pkl"
+
         self.cfg["MODEL"]["DEVICE"] = "cpu"
         self.predictor = detectron2.engine.DefaultPredictor(self.cfg)
         self.model = self.predictor.model
@@ -271,8 +269,7 @@ class PretrainedKeypointDetector(nn.Module):
         return
 
     def forward(self, img, return_more=False):
-        # This forward pass is unique to passup.py, returning the final heatmaps.
-        # assumes img.shape = (bs, rgb, h, w)
+        # This unique forward pass is unchanged.
         h, w = img.shape[2:]
         x = [
             {"image": i, "height": h, "width": w}
@@ -280,59 +277,34 @@ class PretrainedKeypointDetector(nn.Module):
         ]
         images = self.model.preprocess_image(x)
         features = self.model.backbone(images.tensor)
-        if False:
-            # roi heads will fuckin re-predict bboxes
-            proposals = [
-                detectron2.structures.instances.Instances(
-                    image_size=images[0].shape[1:],
-                    proposal_boxes=detectron2.structures.boxes.Boxes(
-                        torch.tensor(
-                            [
-                                0,
-                                0,
-                                *images[0].shape[1:],
-                            ],
-                            device=images.device,
-                        )[None]
-                    ),
-                    objectness_logits=torch.tensor(
-                        [
-                            1.0,
-                        ],
-                        device=images.device,
-                    ),
-                ),
-            ] * img.shape[0]
-            results, _ = self.model.roi_heads(images, features, proposals, None)
-        else:
-            # forces them to use my bboxes
-            h, w = images[0].shape[1:]
-            detected_instances = [
-                detectron2.structures.instances.Instances(
-                    image_size=(h, w),
-                    pred_boxes=detectron2.structures.boxes.Boxes(
-                        torch.tensor(
-                            [
-                                0,
-                                0,
-                                h,
-                                w,
-                            ],
-                            device=images.device,
-                        )[None]
-                    ),
-                    pred_classes=torch.tensor(
+
+        h, w = images[0].shape[1:]
+        detected_instances = [
+            detectron2.structures.instances.Instances(
+                image_size=(h, w),
+                pred_boxes=detectron2.structures.boxes.Boxes(
+                    torch.tensor(
                         [
                             0,
+                            0,
+                            h,
+                            w,
                         ],
                         device=images.device,
-                    ),
-                )
-                for _ in range(img.shape[0])
-            ]
-            results = self.model.roi_heads.forward_with_given_boxes(
-                features, detected_instances
+                    )[None]
+                ),
+                pred_classes=torch.tensor(
+                    [
+                        0,
+                    ],
+                    device=images.device,
+                ),
             )
+            for _ in range(img.shape[0])
+        ]
+        results = self.model.roi_heads.forward_with_given_boxes(
+            features, detected_instances
+        )
         results = self.model._postprocess(results, x, images.image_sizes)
         hms = torch.cat([r["instances"].pred_keypoint_heatmaps for r in results])
         ans = {"keypoint_heatmaps": hms}

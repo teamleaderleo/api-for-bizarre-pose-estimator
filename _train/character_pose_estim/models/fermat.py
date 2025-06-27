@@ -290,30 +290,21 @@ class PretrainedKeypointDetector(nn.Module):
     def __init__(self):
         super().__init__()
 
-        # FIX: Import the model_zoo submodule.
         from detectron2 import model_zoo
 
         # setup rcnn model
         self.cfg = detectron2.config.get_cfg()
-        # FIX: Use the imported submodule to call the function.
         self.cfg.merge_from_file(
             model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_101_FPN_3x.yaml")
         )
         self.cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.0
-        # FIX: Use the imported submodule to call the function.
-        self.cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(
-            "COCO-Keypoints/keypoint_rcnn_R_101_FPN_3x.yaml"
-        )
+
+        # *** PERFORMANCE FIX: Point to the pre-downloaded local file ***
+        self.cfg.MODEL.WEIGHTS = "/root/model_final_997cc7.pkl"
+
         self.cfg["MODEL"]["DEVICE"] = "cpu"
         self.predictor = detectron2.engine.DefaultPredictor(self.cfg)
         self.model = self.predictor.model
-
-        # This commented-out block is unique to fermat.py's original code
-        # # change roi head
-        # self.cfg.MODEL.ROI_KEYPOINT_HEAD.NUM_KEYPOINTS = 17+8
-        # self.model.roi_heads.keypoint_head.score_lowres = nn.ConvTranspose2d(
-        #     512, 17+8, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1),
-        # )
 
         # freeze all params
         for param in self.model.parameters():
@@ -325,8 +316,7 @@ class PretrainedKeypointDetector(nn.Module):
         return
 
     def forward(self, img, return_more=False):
-        # This forward pass is unique to fermat.py, returning an intermediate feature map.
-        # assumes img.shape = (bs, rgb, h, w)
+        # This unique forward pass is unchanged.
         h, w = img.shape[2:]
         x = [
             {"image": i, "height": h, "width": w}
@@ -337,7 +327,6 @@ class PretrainedKeypointDetector(nn.Module):
         with torch.no_grad():
             features = self.model.backbone(images.tensor)
 
-        # forces them to use my bboxes
         h, w = images[0].shape[1:]
         detected_instances = [
             detectron2.structures.instances.Instances(
@@ -372,7 +361,6 @@ class PretrainedKeypointDetector(nn.Module):
         else:
             _features = {f: features[f] for f in roi.keypoint_in_features}
 
-        # get last feature layer
         fl = _features
         for i in range(len(roi.keypoint_head) - 1):
             fl = roi.keypoint_head[i](fl)
