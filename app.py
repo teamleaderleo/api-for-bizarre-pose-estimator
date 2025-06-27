@@ -16,6 +16,12 @@ image = (
             "wget cmake ffmpeg libgl1-mesa-glx libsm6 libxext6 libxrender-dev",
         ]
     )
+    # Pre-cache the DeepLabV3 model weights so that `pretrained=True`
+    # finds them locally and doesn't try to download them at runtime.
+    .run_commands(
+        "mkdir -p /root/.cache/torch/hub/checkpoints",
+        "wget https://download.pytorch.org/models/deeplabv3_resnet101_coco-586e9e4e.pth -O /root/.cache/torch/hub/checkpoints/deeplabv3_resnet101_coco-586e9e4e.pth",
+    )
     # Install Torch, Torchvision, and Detectron2 first.
     # We must use run_commands here because of the --find-links (-f) flag.
     .run_commands(

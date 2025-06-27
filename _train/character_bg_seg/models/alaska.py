@@ -1,8 +1,12 @@
-from _util.util_v1 import * ; import _util.util_v1 as uutil
-from _util.pytorch_v1 import * ; import _util.pytorch_v1 as utorch
-from _util.twodee_v0 import * ; import _util.twodee_v0 as u2d
+from _util.util_v1 import *
+import _util.util_v1 as uutil
+from _util.pytorch_v1 import *
+import _util.pytorch_v1 as utorch
+from _util.twodee_v0 import *
+import _util.twodee_v0 as u2d
 
-from torchvision.models.segmentation import DeepLabV3_ResNet101_Weights
+# This import is removed as it's not available in old torchvision
+# from torchvision.models.segmentation import DeepLabV3_ResNet101_Weights
 
 class Model(pl.LightningModule):
     def __init__(self, bargs, pargs, largs, margs):
@@ -14,8 +18,9 @@ class Model(pl.LightningModule):
         self.save_hyperparameters()
 
         # setup deeplab
+        # Replaced the `weights` enum with the older `pretrained=True` flag
         self.deeplab = tv.models.segmentation.deeplabv3_resnet101(
-            weights=DeepLabV3_ResNet101_Weights.COCO_WITH_VOC_LABELS_V1,
+            pretrained=True,
             progress=True,
         )
         self.deeplab.aux_classifier = None
