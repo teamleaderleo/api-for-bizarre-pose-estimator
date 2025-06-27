@@ -45,7 +45,7 @@ image = (
         # version to resolve the `VGG16_Weights` ImportError.
         "torchmetrics==0.6.2",
         # Let versions chosen by detectron2 take precedence
-        "Pillow",
+        "Pillow==8.4.0",
         "scikit-image",
         "scikit-learn",
         "scipy",
