@@ -189,8 +189,9 @@ class Lifter:
         input_tensor = torch.from_numpy(input_kpts.astype("float32")).to(self.device)
         predicted_3d_pos_normalized = self.model(input_tensor).squeeze(0).cpu().numpy()
 
-        # The model outputs a sequence; for single-image inference, we take the center frame
-        output_3d_h36m_normalized = predicted_3d_pos_normalized[pad]
+        # The model outputs a single frame prediction.
+        # Its shape after squeeze() is (1, 17, 3), so we take the first element.
+        output_3d_h36m_normalized = predicted_3d_pos_normalized[0]
 
         # Denormalize Z coordinate and map back to COCO format
         final_result = np.zeros((17, 3), dtype=np.float32)
