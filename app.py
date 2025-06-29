@@ -138,7 +138,12 @@ class BizarrePoseModel:
 
         try:
             img_h = Image.open(io.BytesIO(buf)).height
+            # keypoints_2d_array is (N, 2) with format [y, x]
             keypoints_2d_array = run_pose_estimation(self.model_tuple, buf)
+
+            # Correct the coordinate system mismatch from the 2D estimator. ***
+            # The model outputs (row, col) which is (y, x). We swap them to be (x, y).
+            keypoints_2d_array = keypoints_2d_array[:, [1, 0]]
 
             # The lifter now handles all mapping and returns a (17, 3) array
             # with [original_x, original_y, inferred_z] in the correct COCO order.
