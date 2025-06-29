@@ -1,5 +1,8 @@
 import modal
 from fastapi import UploadFile, File, HTTPException
+from PIL import Image
+import io
+import numpy as np
 
 # 1) Define Modal app
 app = modal.App("bizarre-pose-api")
@@ -25,6 +28,8 @@ image = (
         "wget https://download.pytorch.org/models/resnet50-19c8e357.pth -O /root/.cache/torch/hub/checkpoints/resnet50-19c8e357.pth",
         # 3. Detectron2's pretrained model
         "wget https://dl.fbaipublicfiles.com/detectron2/COCO-Keypoints/keypoint_rcnn_R_101_FPN_3x/138363331/model_final_997cc7.pkl -O /root/model_final_997cc7.pkl",
+        # 4. The 2D to 3D pose lifter model
+        "wget https://dl.fbaipublicfiles.com/pose-baseline/pretrained_h36m_2d_to_3d.bin -O /root/pretrained_h36m_2d_to_3d.bin",
     )
     # Install Torch, Torchvision, and Detectron2 first.
     # We must use run_commands here because of the --find-links (-f) flag.
@@ -95,17 +100,20 @@ class BizarrePoseModel:
         # Add the project root to the Python path to allow imports like `_scripts...`
         sys.path.insert(0, "/root")
         from _scripts.pose_estimator import load_model
+        from _scripts.pose_lifter import SimpleLifter
 
-        print("Loading models to CPU from checkpoint...")
+        print("Loading 2D pose models to CPU...")
         self.model_tuple = load_model(
             "/root/_train/character_pose_estim/runs/feat_match+data.ckpt"
         )
+        print("Loading 3D lifter model to CPU...")
+        self.lifter = SimpleLifter()
         print("CPU models loaded successfully.")
 
     # *** STAGE 2: Move models to GPU. This runs after restoring from snapshot. ***
     @modal.enter(snap=False)
     def move_models_to_gpu(self):
-        print("Moving models to GPU...")
+        print("Moving 2D pose models to GPU...")
         pose_model, segmenter = self.model_tuple
         pose_model.to("cuda")
         segmenter.to("cuda")
@@ -129,8 +137,15 @@ class BizarrePoseModel:
         buf = await file.read()
 
         try:
-            # Call the original inference function with the loaded models
-            keypoints_array = run_pose_estimation(self.model_tuple, buf)
+            img_h = Image.open(io.BytesIO(buf)).height
+            keypoints_2d_array = run_pose_estimation(self.model_tuple, buf)
+
+            # The lifter now handles all mapping and returns a (17, 3) array
+            # with [original_x, original_y, inferred_z] in the correct COCO order.
+            final_keypoints_3d = self.lifter.lift(
+                keypoints_2d_array.astype("float32"), img_h
+            )
+
         except Exception as e:
             # Log the full exception for better debugging
             import traceback
@@ -140,8 +155,8 @@ class BizarrePoseModel:
 
         # Create the structured dictionary by zipping names with coordinates
         keypoints_dict = {
-            name: coords.tolist()  # .tolist() converts numpy array to python list
-            for name, coords in zip(ukey.coco_keypoints, keypoints_array)
+            name: coords.tolist()
+            for name, coords in zip(ukey.coco_keypoints, final_keypoints_3d)
         }
         return {"keypoints": keypoints_dict}
 
