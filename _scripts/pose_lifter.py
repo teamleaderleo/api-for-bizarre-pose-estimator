@@ -44,70 +44,99 @@ class TemporalModel(nn.Module):
         causal=False,
         dropout=0.25,
         channels=1024,
+        dense=False,
     ):
         super().__init__()
 
+        # Validate input
+        for fw in filter_widths:
+            assert fw % 2 != 0, "Only odd filter widths are supported"
+
         self.num_joints_in = num_joints_in
         self.in_features = in_features
+        self.num_joints_out = num_joints_out
+        self.filter_widths = filter_widths
 
-        # "This is the corrected architecture based on the original source code"
+        self.drop = nn.Dropout(dropout)
+        self.relu = nn.ReLU(inplace=True)
+
+        self.pad = [filter_widths[0] // 2]
         self.expand_conv = nn.Conv1d(
             num_joints_in * in_features, channels, filter_widths[0], bias=False
         )
         self.expand_bn = nn.BatchNorm1d(channels, momentum=0.1)
-
-        self.layers_conv = nn.ModuleList()
-        self.layers_bn = nn.ModuleList()
-
-        # Build the main temporal blocks
-        for i in range(1, len(filter_widths)):
-            dilation = (filter_widths[0] - 1) ** (i - 1)
-            self.layers_conv.append(
-                nn.Conv1d(
-                    channels, channels, filter_widths[i], dilation=dilation, bias=False
-                )
-            )
-            self.layers_bn.append(nn.BatchNorm1d(channels, momentum=0.1))
-
-        # Final layer, named 'shrink' to match the state_dict
         self.shrink = nn.Conv1d(channels, num_joints_out * 3, 1)
 
-        self.relu = nn.ReLU(inplace=True)
-        self.drop = nn.Dropout(dropout, inplace=True)
+        layers_conv = []
+        layers_bn = []
+
+        self.causal_shift = [(filter_widths[0] // 2) if causal else 0]
+        next_dilation = filter_widths[0]
+        for i in range(1, len(filter_widths)):
+            self.pad.append((filter_widths[i] - 1) * next_dilation // 2)
+            self.causal_shift.append(
+                (filter_widths[i] // 2 * next_dilation) if causal else 0
+            )
+
+            layers_conv.append(
+                nn.Conv1d(
+                    channels,
+                    channels,
+                    filter_widths[i] if not dense else (2 * self.pad[-1] + 1),
+                    dilation=next_dilation if not dense else 1,
+                    bias=False,
+                )
+            )
+            layers_bn.append(nn.BatchNorm1d(channels, momentum=0.1))
+            layers_conv.append(nn.Conv1d(channels, channels, 1, dilation=1, bias=False))
+            layers_bn.append(nn.BatchNorm1d(channels, momentum=0.1))
+
+            next_dilation *= filter_widths[i]
+
+        self.layers_conv = nn.ModuleList(layers_conv)
+        self.layers_bn = nn.ModuleList(layers_bn)
 
     def forward(self, x):
-        # Input shape: (batch, frames, joints, features)
-        x = x.permute(0, 3, 1, 2).contiguous()  # -> (batch, features, frames, joints)
-        x = x.view(
-            x.shape[0], x.shape[1], x.shape[2], self.num_joints_in
-        )  # Sanity check shape
-        x = x.view(
-            x.shape[0], self.in_features * self.num_joints_in, x.shape[2]
-        )  # -> (batch, joints*features, frames)
+        assert len(x.shape) == 4
+        assert x.shape[-2] == self.num_joints_in
+        assert x.shape[-1] == self.in_features
+
+        sz = x.shape[:3]
+        x = x.view(x.shape[0], x.shape[1], -1)
+        x = x.permute(0, 2, 1)
 
         x = self.drop(self.relu(self.expand_bn(self.expand_conv(x))))
 
-        for i in range(len(self.layers_conv)):
-            res = x
-            x = self.drop(self.relu(self.layers_bn[i](self.layers_conv[i](x))))
-            x = res + x  # Residual connection
+        for i in range(len(self.pad) - 1):
+            pad = self.pad[i + 1]
+            shift = self.causal_shift[i + 1]
+            res = x[:, :, pad + shift : x.shape[2] - pad + shift]
+
+            x = self.drop(self.relu(self.layers_bn[2 * i](self.layers_conv[2 * i](x))))
+            x = res + self.drop(
+                self.relu(self.layers_bn[2 * i + 1](self.layers_conv[2 * i + 1](x)))
+            )
 
         x = self.shrink(x)
 
-        # Output shape: (batch, frames, joints, 3)
-        x = (
-            x.view(x.shape[0], 3, -1, self.num_joints_in)
-            .permute(0, 2, 3, 1)
-            .contiguous()
-        )
+        x = x.permute(0, 2, 1)
+        x = x.view(sz[0], -1, self.num_joints_out, 3)
+
         return x
+
+    def receptive_field(self):
+        frames = 0
+        for f in self.pad:
+            frames += f
+        return 1 + 2 * frames
 
 
 class Lifter:
     def __init__(self, ckpt_path="/root/pretrained_h36m_cpn.bin"):
-        # This architecture matches the `-arc 3,3,3,3,3` model with 243-frame receptive field
+        # The `-arc 3,3,3,3,3` flag in the README corresponds to these filter widths
         filter_widths = [3, 3, 3, 3, 3]
 
+        # Instantiate the verbatim model architecture
         self.model = TemporalModel(
             num_joints_in=17,
             in_features=2,
@@ -118,23 +147,12 @@ class Lifter:
             channels=1024,
         )
 
-        # Load the pretrained model weights
-        state_dict = torch.load(ckpt_path, map_location="cpu")
-        # Rename keys from the checkpoint to match our model structure
-        # (original code used 'model_pos.layers' which is flattened by state_dict)
-        for k in list(state_dict["model_pos"].keys()):
-            new_key = k.replace("model_pos.", "")
-            state_dict["model_pos"][new_key] = state_dict["model_pos"].pop(k)
+        self.receptive_field = self.model.receptive_field()
 
+        state_dict = torch.load(ckpt_path, map_location="cpu")
+        # The model weights are nested in the checkpoint file under 'model_pos'
         self.model.load_state_dict(state_dict["model_pos"], strict=True)
         self.model.eval()
-
-        # Calculate the receptive field
-        self.receptive_field = 1
-        for i in range(1, len(filter_widths)):
-            self.receptive_field += (filter_widths[i] - 1) * (
-                (filter_widths[0] - 1) ** (i - 1)
-            )
 
         self.device = "cpu"
 
@@ -147,24 +165,21 @@ class Lifter:
         self, coco_keypoints_2d: np.ndarray, image_width: int, image_height: int
     ) -> np.ndarray:
         h36m_kpts = coco_to_h36m(coco_keypoints_2d)
-
-        # Normalize for the model
         root = h36m_kpts[0].copy()
         h36m_kpts_normalized = (h36m_kpts - root) / float(image_height)
 
-        # Pad the single frame to the model's full receptive field
+        # Pad the single frame to the model's full receptive field to create a fake sequence
         pad = (self.receptive_field - 1) // 2
         input_kpts = np.pad(
-            h36m_kpts_normalized[np.newaxis, np.newaxis],
-            ((0, 0), (0, 0), (pad, pad), (0, 0)),
+            h36m_kpts_normalized[np.newaxis, :],
+            ((0, 0), (pad, pad), (0, 0), (0, 0)),
             "edge",
         )
-        input_kpts = np.transpose(input_kpts, (0, 2, 3, 1))
 
-        # Run inference
         input_tensor = torch.from_numpy(input_kpts.astype("float32")).to(self.device)
         predicted_3d_pos_normalized = self.model(input_tensor).squeeze(0).cpu().numpy()
 
+        # The model outputs a sequence; for single-image inference, we take the center frame
         output_3d_h36m_normalized = predicted_3d_pos_normalized[pad]
 
         # Denormalize Z coordinate and map back to COCO format
@@ -187,12 +202,11 @@ class Lifter:
             16: 10,  # Right Arm
         }
         for h36m_idx, coco_idx in h36m_to_coco_map.items():
-            # Denormalize Z using image height
             final_result[coco_idx, 2] = (
                 output_3d_h36m_normalized[h36m_idx, 2] * image_height
             )
 
-        # Use nose depth for eyes and ears
+        # Use nose depth for eyes and ears, as they are not in the H36M skeleton
         nose_z = final_result[0, 2]
         for idx in [1, 2, 3, 4]:
             final_result[idx, 2] = nose_z
