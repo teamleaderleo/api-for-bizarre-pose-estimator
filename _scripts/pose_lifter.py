@@ -168,13 +168,23 @@ class Lifter:
         root = h36m_kpts[0].copy()
         h36m_kpts_normalized = (h36m_kpts - root) / float(image_height)
 
-        # Pad the single frame to the model's full receptive field to create a fake sequence
         pad = (self.receptive_field - 1) // 2
-        input_kpts = np.pad(
-            h36m_kpts_normalized[np.newaxis, :],
-            ((0, 0), (pad, pad), (0, 0), (0, 0)),
+
+        # Start with a single frame of shape (1, 17, 2)
+        single_frame_sequence = h36m_kpts_normalized[np.newaxis, :]
+
+        # Pad the frames dimension (axis 0) to the receptive field size.
+        # The pad_width tuple must have a length equal to the input array's ndim (3).
+        padded_sequence = np.pad(
+            single_frame_sequence,
+            ((pad, pad), (0, 0), (0, 0)),  # Padding for (frames, joints, features)
             "edge",
         )
+        # padded_sequence now has shape (243, 17, 2)
+
+        # Add the batch dimension at the beginning for the model.
+        input_kpts = padded_sequence[np.newaxis, :]
+        # input_kpts now has shape (1, 243, 17, 2)
 
         input_tensor = torch.from_numpy(input_kpts.astype("float32")).to(self.device)
         predicted_3d_pos_normalized = self.model(input_tensor).squeeze(0).cpu().numpy()
