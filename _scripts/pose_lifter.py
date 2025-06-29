@@ -34,40 +34,116 @@ def coco_to_h36m(coco_kpts: np.ndarray) -> np.ndarray:
     return h36m_kpts
 
 
-class SimpleLifter(nn.Module):
-    def __init__(self, ckpt_path="/root/pretrained_h36m_2d_to_3d.bin"):
+# --- Model Architecture from VideoPose3D ---
+class TemporalModel(nn.Module):
+    def __init__(
+        self,
+        num_joints_in,
+        in_features,
+        num_joints_out,
+        out_features,
+        filter_widths,
+        causal=False,
+        dropout=0.25,
+        channels=1024,
+    ):
         super().__init__()
-        self.mlp = nn.Sequential(
-            nn.Linear(34, 1024),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(1024, 1024),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(1024, 51),
+        self.expand_conv = nn.Conv1d(
+            num_joints_in * in_features, channels, filter_widths[0], bias=False
         )
-        self.mlp.load_state_dict(torch.load(ckpt_path, map_location="cpu"))
-        self.eval()
+
+        layers_conv = []
+        for i in range(1, len(filter_widths)):
+            dilation = (filter_widths[0] - 1) ** i
+            layers_conv.append(
+                nn.Conv1d(
+                    channels, channels, filter_widths[i], dilation=dilation, bias=False
+                )
+            )
+            layers_conv.append(nn.BatchNorm1d(channels))
+            layers_conv.append(nn.ReLU(inplace=True))
+            layers_conv.append(nn.Dropout(dropout, inplace=True))
+
+        self.layers_conv = nn.Sequential(*layers_conv)
+        self.shrink_conv = nn.Conv1d(
+            channels, num_joints_out * out_features, 1, bias=False
+        )
+
+    def forward(self, x):
+        x = x.permute(0, 3, 1, 2).contiguous()
+        x = x.view(x.shape[0], x.shape[1] * x.shape[2], x.shape[3])
+
+        x = self.expand_conv(x)
+        x = self.layers_conv(x)
+        x = self.shrink_conv(x)
+
+        x = x.view(x.shape[0], -1, 3, x.shape[2])
+        x = x.permute(0, 3, 1, 2).contiguous()
+        return x
+
+class Lifter:
+    def __init__(self, ckpt_path="/root/pretrained_h36m_cpn.bin"):
+        # This architecture matches the `-arc 3,3,3,3,3` model with 243-frame receptive field
+        filter_widths = [3, 3, 3, 3, 3]
+        self.model = TemporalModel(
+            num_joints_in=17,
+            in_features=2,
+            num_joints_out=17,
+            out_features=3,
+            filter_widths=filter_widths,
+            causal=False,
+            dropout=0.25,
+            channels=1024,
+        )
+
+        # Load the pretrained model weights
+        state_dict = torch.load(ckpt_path, map_location="cpu")
+        # The weights are nested under the 'model_pos' key in the official checkpoint
+        self.model.load_state_dict(state_dict["model_pos"])
+        self.model.eval()
+
+        # Calculate the receptive field
+        self.receptive_field = 1
+        for i in range(1, len(filter_widths)):
+            self.receptive_field += (filter_widths[i] - 1) * (
+                (filter_widths[0] - 1) ** (i - 1)
+            )
+
+        self.device = "cpu"
+
+    def to_gpu(self):
+        self.model.to("cuda")
+        self.device = "cuda"
 
     @torch.no_grad()
-    def lift(self, coco_keypoints_2d: np.ndarray, image_height: int) -> np.ndarray:
-        # 1. Convert COCO keypoints to the H36M format the model expects.
+    def lift(
+        self, coco_keypoints_2d: np.ndarray, image_width: int, image_height: int
+    ) -> np.ndarray:
         h36m_kpts = coco_to_h36m(coco_keypoints_2d)
 
-        # 2. Normalize the H36M keypoints for the model.
+        # Normalize for the model
         root = h36m_kpts[0].copy()
-        h36m_kpts -= root
-        h36m_kpts /= float(image_height)
+        h36m_kpts_normalized = (h36m_kpts - root) / float(image_height)
 
-        # 3. Predict the 3D pose in H36M space.
-        input_tensor = torch.from_numpy(h36m_kpts.flatten()).float().unsqueeze(0)
-        output_3d_h36m = self.mlp(input_tensor).view(17, 3).cpu().numpy()
+        # Pad the single frame to the model's full receptive field
+        pad = (self.receptive_field - 1) // 2
+        input_kpts = np.pad(
+            h36m_kpts_normalized[np.newaxis],
+            ((0, 0), (pad, pad), (0, 0), (0, 0)),
+            "edge",
+        )
 
-        # 4. Create the final output array, preserving the original COCO X,Y coordinates.
+        # Run inference
+        input_tensor = torch.from_numpy(input_kpts.astype("float32")).to(self.device)
+        predicted_3d_pos_normalized = self.model(input_tensor).squeeze(0).cpu().numpy()
+
+        # Output is a single frame prediction from the center of the receptive field
+        output_3d_h36m_normalized = predicted_3d_pos_normalized[0]
+
+        # Denormalize Z coordinate and map back to COCO format
         final_result = np.zeros((17, 3), dtype=np.float32)
         final_result[:, :2] = coco_keypoints_2d
 
-        # 5. Map the inferred Z-coordinates from the H36M output back to the correct COCO joints.
         h36m_to_coco_map = {
             1: 12,
             2: 14,
@@ -84,14 +160,14 @@ class SimpleLifter(nn.Module):
             16: 10,  # Right Arm
         }
         for h36m_idx, coco_idx in h36m_to_coco_map.items():
-            final_result[coco_idx, 2] = output_3d_h36m[h36m_idx, 2]
+            # Denormalize Z using image height
+            final_result[coco_idx, 2] = (
+                output_3d_h36m_normalized[h36m_idx, 2] * image_height
+            )
 
-        # 6. Intelligently handle missing joints (eyes, ears) by using the nose's depth.
-        # This is a key refinement for visual quality.
+        # Use nose depth for eyes and ears
         nose_z = final_result[0, 2]
-        final_result[1, 2] = nose_z  # Left Eye
-        final_result[2, 2] = nose_z  # Right Eye
-        final_result[3, 2] = nose_z  # Left Ear
-        final_result[4, 2] = nose_z  # Right Ear
+        for idx in [1, 2, 3, 4]:
+            final_result[idx, 2] = nose_z
 
         return final_result
