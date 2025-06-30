@@ -143,11 +143,17 @@ class BizarrePoseModel:
             img_h = img.height
             img_w = img.width
 
+            # This returns a (25, 2) array with (y, x) coordinates
             keypoints_2d_array = run_pose_estimation(self.model_tuple, buf)
 
-            # Correct the coordinate system mismatch from the 2D estimator. ***
+            # The 2D model returns 25 keypoints (17 COCO + 8 custom).
+            # The 3D lifter only understands the standard 17 COCO keypoints.
+            # We must slice the array to only pass the first 17.
+            coco_keypoints_only_2d = keypoints_2d_array[:17]
+
+            # Correct the coordinate system mismatch from the 2D estimator.
             # The model outputs (row, col) which is (y, x). We swap them to be (x, y).
-            keypoints_2d_array_xy = keypoints_2d_array[:, [1, 0]]
+            keypoints_2d_array_xy = coco_keypoints_only_2d[:, [1, 0]]
 
             # The lifter now handles all mapping and returns a (17, 3) array
             # with [original_x, original_y, inferred_z] in the correct COCO order.
