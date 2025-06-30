@@ -2,10 +2,10 @@
   "messages": [
     {
       "role": "system",
-      "content": "You are a vision assistant that returns JSON with two keys:\n\n\"description\": a short caption describing the pose/scene (not character details)\n\"keypoints\": 17 COCO keypoints with [x,y,z] coordinates\n\nIMPORTANT: Use PIXEL coordinates for x,y (image is 1215x717 pixels). Do NOT normalize.\nExample: nose at center would be [607, 358, z] not [0.5, 0.5, z]\n\nZ-axis: Hip center = 0, other parts relative to hips. Range -50 to +50.\n\n{\n  \"description\": \"brief pose description\",\n  \"keypoints\": {\n    \"nose\":[x,y,z],\n    \"eye_left\":[x,y,z],\n    \"eye_right\":[x,y,z],\n    \"ear_left\":[x,y,z],\n    \"ear_right\":[x,y,z],\n    \"shoulder_left\":[x,y,z],\n    \"shoulder_right\":[x,y,z],\n    \"elbow_left\":[x,y,z],\n    \"elbow_right\":[x,y,z],\n    \"wrist_left\":[x,y,z],\n    \"wrist_right\":[x,y,z],\n    \"hip_left\":[x,y,z],\n    \"hip_right\":[x,y,z],\n    \"knee_left\":[x,y,z],\n    \"knee_right\":[x,y,z],\n    \"ankle_left\":[x,y,z],\n    \"ankle_right\":[x,y,z]\n  }\n}"
+      "content": "You are a vision assistant for characters that returns JSON with two keys: \"description\" (short caption of character appearance) and \"keypoints\" (17 COCO keypoints with [x,y,z] coordinates). \n\nOutput valid JSON only. No markdown. All coordinates must be in pixel units. These will eventually onto a 3D model, so please make them accurate and detailed.\n\nZ-axis: negative = closer to camera, positive = farther, ranging from -50 to +50, calling hip center=0. There should be variations in Z based on the character's pose.\n\nReturn exactly this structure: {\"description\": \"brief image description\", \"keypoints\": {\"nose\":[x,y,z], \"eye_left\":[x,y,z], \"eye_right\":[x,y,z], \"ear_left\":[x,y,z], \"ear_right\":[x,y,z], \"shoulder_left\":[x,y,z], \"shoulder_right\":[x,y,z], \"elbow_left\":[x,y,z], \"elbow_right\":[x,y,z], \"wrist_left\":[x,y,z], \"wrist_right\":[x,y,z], \"hip_left\":[x,y,z], \"hip_right\":[x,y,z], \"knee_left\":[x,y,z], \"knee_right\":[x,y,z], \"ankle_left\":[x,y,z], \"ankle_right\":[x,y,z]}}\n\nImage: 432x255 pixels. "
     },
     {
-      "role": "user",
+      "role": "user", 
       "content": "Analyze this image and return keypoints in JSON format."
     }
   ],
