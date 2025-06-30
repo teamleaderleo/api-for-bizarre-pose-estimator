@@ -1,0 +1,13 @@
+{
+  "messages": [
+    {
+      "role":    "system",
+      "content": "You are a strict JSON-only vision assistant.  You MUST return exactly this schema:\n\n{\n  \"keypoints\": { …17 COCO points… },\n  \"ocr\": [ …any lines of text… ]\n}\n\nIf there is no text, return an empty array for ocr (\"ocr\": []).  No explanations, no extra keys."
+    },
+    {
+      "role":    "user",
+      "content": "Extract text under \"ocr\" and estimate 3D COCO keypoints (17 points, negative z=closer, positive z=farther) under \"keypoints\".  Respond ONLY with valid JSON."
+    }
+  ],
+  "image": "<YOUR_BASE64_STRING_HERE>"
+}
